@@ -25,7 +25,7 @@ def populate_derivatives(m, n):
     #compute derivatives, store in drv
     global drv 
     drv = [decimal.Decimal(0)]*n
-    for i in range(0,n,1000):
+    for i in range(n):
         for j in range(m):
             drv[i] += (ln_expr[j]*(expr[j]**decimal.Decimal(i)))
 
@@ -44,7 +44,7 @@ def populate_footprint(m, n):
     #compute footprints, store in fp
     global fp 
     fp = [decimal.Decimal(0)]*n
-    for i in range(0,n,1000):
+    for i in range(n):
         for j in range(m):
             fp[i] += (decimal.Decimal(1) - (expr[j]**decimal.Decimal(i)))
 
