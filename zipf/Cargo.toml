@@ -8,3 +8,4 @@ edition = "2018"
 
 [dependencies]
 rug = "1.7.0"
+libmath = "0.1.4"
