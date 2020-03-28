@@ -19,16 +19,15 @@ fn compute_normalizer(alpha: &Float, m: &u32) -> Float {
 }
 
 
-fn populate_subexpressions(m: &u32, alpha: &Float, norm: &Float) -> (Vec<Float>, Vec<Float>) {
+fn populate_subexpressions(m: &u32, alpha: &Float, norm: &Float) -> (Vec<Float>, Vec<Float>, Vec<Float>) {
     let mut expr: Vec<Float> = Vec::new();
     let mut ln_expr: Vec<Float> = Vec::new();
     let mut wfp_expr: Vec<Float> = Vec::new();
 
 
     //------------------change rw ratio here---------------------
-    let rw = Float::new(100);
-    rw.assign(0.9);
-
+    let rw = 0.9;
+    //-----------------------------------------------------------
 
     for i in 1..(m+1) {
         let mut temp = Float::new(100);
@@ -36,10 +35,10 @@ fn populate_subexpressions(m: &u32, alpha: &Float, norm: &Float) -> (Vec<Float>,
         expr.push(Float::new(100));
         ln_expr.push(Float::new(100));
         wfp_expr.push(Float::new(100));
-        expr[(i-1) as usize].assign(1 - norm*(temp.pow(-1* (alpha.clone()))));
+        expr[(i-1) as usize].assign(1 - norm*(temp.clone().pow(-1*(alpha.clone()))));
         //println!("{}", &expr[(i-1) as usize]);
         ln_expr[(i-1) as usize].assign(-1*expr[(i-1) as usize].clone().ln());
-        wfp_expr[(i-1) as usize].assign((1-rw).pow(norm*(temp.pow(-1* (alpha.clone())))));
+        wfp_expr[(i-1) as usize].assign((1.0-rw).pow(norm*(temp.clone().pow(-1*(alpha.clone())))));
     }
 
     (expr, ln_expr, wfp_expr)
@@ -49,11 +48,14 @@ fn populate_footprints_derivatives(m: &u32, n: &u32, expr: Vec<Float>, ln_expr: 
     
     let mut fp: Vec<Float> = Vec::new();
     let mut drv: Vec<Float> = Vec::new();
+    let mut wfp: Vec<Float> = Vec::new();
+    let mut rdfp: Vec<Float> = Vec::new();
 
     for i in 0..*n {
         fp.push(Float::new(100));
         drv.push(Float::new(100));
         wfp.push(Float::new(100));
+        rdfp.push(Float::new(100));
 
         fp[i as usize].assign(0);
         drv[i as usize].assign(0);
@@ -73,27 +75,33 @@ fn populate_footprints_derivatives(m: &u32, n: &u32, expr: Vec<Float>, ln_expr: 
             let t2 = 1 - expr[k as usize].clone();
             let t3 = wfp[i as usize].clone();
 
-            wfp[i as usize].assign(t3 - (t1.pow(i as usize)*t2);
+            wfp[i as usize].assign(t3 - (t1.pow(i)*t2));
         }
+
+        let t1 = fp[i as usize].clone();
+        let t2 = wfp[i as usize].clone();
+
+        rdfp[i as usize].assign(t2/t1);
     }
 
-    (fp, drv, wfp)
+    (fp, drv, rdfp)
 }
 
 fn compute_mrs(m: u32, n: u32, alpha: Float) {
     let norm: Float = compute_normalizer(&alpha, &m);
     let (expr, ln_expr, wfp_expr) : (Vec<Float>, Vec<Float>, Vec<Float>) = populate_subexpressions(&m, &alpha, &norm);
-    let (fp, drv, wfp) : (Vec<Float>, Vec<Float>, Vec<Float>) = populate_footprints_derivatives(&m, &n, expr, ln_expr, wfp_expr);
+    let (fp, drv, rdfp) : (Vec<Float>, Vec<Float>, Vec<Float>) = populate_footprints_derivatives(&m, &n, expr, ln_expr, wfp_expr);
     //println!("parameters: data size = {0}, trace length = {1}, zipf parameter = {2}", &m, &n, &alpha);
 
     let mut cache_size: u32 = 0;
-    println!("size,mr");
+    println!("size,mr,wbr");
     for x in 0..(n-1) {
         if fp[x as usize].clone().floor() > cache_size {
             let size = round::floor(fp[x as usize].to_f64(),1);
             if size.fract() == 0.0 {
                 let mr = round::floor(drv[x as usize].to_f64(),3);
-                println!("{0},{1:.3}",size,mr);
+                let wbr = round::floor(rdfp[x as usize].to_f64(),3) * mr;
+                println!("{0},{1:.3},{2:.3}",size,mr,wbr);
             }
             cache_size = fp[x as usize].clone().floor().to_u32_saturating().unwrap();
         }
