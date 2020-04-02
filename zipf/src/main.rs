@@ -26,7 +26,7 @@ fn populate_subexpressions(m: &u32, alpha: &Float, norm: &Float) -> (Vec<Float>,
 
 
     //------------------change rw ratio here---------------------
-    let rw = 0.9;
+    let rw = 0.2;
     //-----------------------------------------------------------
 
     for i in 1..(m+1) {

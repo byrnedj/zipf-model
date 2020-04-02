@@ -1,1 +1,0 @@
-{"rustc":18183863943228103741,"features":"[\"complex\", \"default\", \"float\", \"gmp-mpfr-sys\", \"integer\", \"rand\", \"rational\"]","target":10429514197457385088,"profile":9935990280773120926,"path":9218607511793856345,"deps":[],"local":[{"Precalculated":"1.7.0"}],"rustflags":[],"metadata":1951439660619474587}
