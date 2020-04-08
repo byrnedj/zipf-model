@@ -70,7 +70,8 @@ fn populate_footprints_derivatives(m: &u32, n: &u32, expr: Vec<Float>, ln_expr: 
             
         }
         
-        wfp[i as usize].assign(fp[i as usize].clone());
+        //wfp[i as usize].assign(fp[i as usize].clone());
+        wfp[i as usize].assign(0);
 
         for k in 0..*m{
             let t1 = binom_expr[k as usize].clone()*i;
@@ -84,8 +85,9 @@ fn populate_footprints_derivatives(m: &u32, n: &u32, expr: Vec<Float>, ln_expr: 
             //wfp[i as usize].assign(t3 - (1 - (t2*(read_ratio.pow(t1)))));
 
             //fp*(1-(wr^p(i)*x))
-            wfp[i as usize].assign(t3 - (t2*(1-(read_ratio.pow(t1)))));
-
+            //wfp[i as usize].assign(t3 - (t2*(1-(read_ratio.pow(t1)))));
+            
+            wfp[i as usize].assign(t3 + (1 - (read_ratio.pow(t1))));
         }
 
         let t1 = fp[i as usize].clone();
