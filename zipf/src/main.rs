@@ -2,7 +2,8 @@ use std::env;
 use math::round;
 use rug::{ops::Pow, Float, Assign};
 extern crate rgsl;
-
+extern crate clap;
+use clap::{Arg, App};
 
 fn compute_normalizer(alpha: &Float, m: &u32) -> Float {
     let mut total = Float::new(100);
@@ -25,11 +26,6 @@ fn populate_subexpressions(m: &u32, alpha: &Float, norm: &Float) -> (Vec<Float>,
     let mut ln_expr: Vec<Float> = Vec::new();
     let mut binom_expr: Vec<Float> = Vec::new();
 
-
-    //------------------change rw ratio here---------------------
-    let rw = 0.2;
-    //-----------------------------------------------------------
-
     for i in 1..(m+1) {
         let mut temp = Float::new(100);
         temp.assign(i);
@@ -45,32 +41,18 @@ fn populate_subexpressions(m: &u32, alpha: &Float, norm: &Float) -> (Vec<Float>,
     (expr, ln_expr, binom_expr)
 }
 
-fn populate_footprints_derivatives(m: &u32, n: &u32, alpha: &Float, norm:&Float, expr: Vec<Float>, ln_expr: Vec<Float>, binom_expr: Vec<Float>) -> (Vec<Float>, Vec<Float>, Vec<Float>, Vec<Float>, Vec<Float>, Vec<Float>){
+fn populate_footprints_derivatives(m: &u32, n: &u32, alpha: &Float, norm:&Float, r: &f32, expr: Vec<Float>, ln_expr: Vec<Float>, binom_expr: Vec<Float>) -> (Vec<Float>, Vec<Float>, Vec<Float>){
     
     let mut fp: Vec<Float> = Vec::new();
     let mut drv: Vec<Float> = Vec::new();
     let mut wfp: Vec<Float> = Vec::new();
     let mut rdfp: Vec<Float> = Vec::new();
-    let mut wfp_approx:Vec<Float> = Vec::new();
-    let mut wfp_upper:Vec<Float> = Vec::new();
-    let mut wfp_lower:Vec<Float> = Vec::new();
-    let mut rdfp_approx:Vec<Float> = Vec::new();
-    let mut rdfp_upper:Vec<Float> = Vec::new();
-    let mut rdfp_lower:Vec<Float> = Vec::new();
-
-    let read_ratio: f64 = 0.8;
 
     for i in 0..*n {
         fp.push(Float::new(100));
         drv.push(Float::new(100));
         wfp.push(Float::new(100));
-        wfp_approx.push(Float::new(100));
-        wfp_upper.push(Float::new(100));
-        wfp_lower.push(Float::new(100));
         rdfp.push(Float::new(100));
-        rdfp_approx.push(Float::new(100));
-        rdfp_upper.push(Float::new(100));
-        rdfp_lower.push(Float::new(100));
 
         fp[i as usize].assign(0);
         drv[i as usize].assign(0);
@@ -82,32 +64,6 @@ fn populate_footprints_derivatives(m: &u32, n: &u32, alpha: &Float, norm:&Float,
             drv[i as usize].assign(t2 + (ln_expr[j as usize].clone()*(expr[j as usize].clone().pow(i))));
             
         }
-        
-        wfp_approx[i as usize].assign(m);
-
-        //approximation using definite integral
-        let mut norm_temp = Float::new(100);
-        let mut temp1 = Float::new(100);
-        let mut tempM = Float::new(100);
-        let mut exp1 = Float::new(100);
-        let mut expM = Float::new(100);
-        let mReciprocal: f64 = 1.0/(*m as f64);
-        let mut expMtemp = Float::new(100);
-        expMtemp.assign(mReciprocal.pow(alpha));
-        //println!("{}", expMtemp);
-
-        norm_temp.assign(norm*(-1.0*(i as f64)));
-        temp1.assign(norm_temp.clone()*(read_ratio.ln()));
-        tempM.assign(norm_temp.clone()*expMtemp*(read_ratio.ln()));
-
-
-        exp1.assign(rgsl::exponential_integrals::En(2, temp1.to_f64()));
-        expM.assign(rgsl::exponential_integrals::En(2, tempM.to_f64()));
-
-        wfp_approx[i as usize].assign(m - ((*m as f64)*expM - exp1)/alpha);
-
-
-
 
         wfp[i as usize].assign(0);
         for k in 0..*m{
@@ -115,33 +71,82 @@ fn populate_footprints_derivatives(m: &u32, n: &u32, alpha: &Float, norm:&Float,
             let t2 = 1 - expr[k as usize].clone().pow(i);
             let t3 = wfp[i as usize].clone();
  
-            wfp[i as usize].assign(t3 + (1 - (read_ratio.pow(t1))));
+            wfp[i as usize].assign(t3 + (1 - ((1.0-r).pow(t1))));
         }
         
 
         let t1 = fp[i as usize].clone();
-        let t2 = fp[i as usize].clone();
-        let t3 = fp[i as usize].clone();
-        let t4 = fp[i as usize].clone();
-        let t5 = wfp[i as usize].clone();
-        let t6 = wfp_approx[i as usize].clone();
-        let t7 = wfp_upper[i as usize].clone();
-        let t8 = wfp_lower[i as usize].clone();
+        let t2 = wfp[i as usize].clone();
 
-        rdfp[i as usize].assign(t5/t1);
-        rdfp_approx[i as usize].assign(t6/t2);
-        rdfp_upper[i as usize].assign(t7/t3);
-        rdfp_lower[i as usize].assign(t8/t4);
+        rdfp[i as usize].assign(t2/t1);
     }
 
-    (fp, drv, rdfp, rdfp_approx, rdfp_upper, rdfp_lower)
+    (fp, drv, rdfp)
 }
 
-fn compute_mrs(m: u32, n: u32, alpha: Float) {
+fn populate_approx(m: &u32, n: &u32, alpha: &Float, norm: &Float, r: &f32) -> (Vec<Float>, Vec<Float>, Vec<Float>){
+    let mut fp_approx: Vec<Float> = Vec::new();
+    let mut drv_approx: Vec<Float> = Vec::new();
+    let mut wfp_approx: Vec<Float> = Vec::new();
+    let mut rdfp_approx: Vec<Float> = Vec::new();
+
+    for i in 0..*n{
+        fp_approx.push(Float::new(100));
+        drv_approx.push(Float::new(100));
+        wfp_approx.push(Float::new(100));
+        rdfp_approx.push(Float::new(100));
+
+        //TODO: fp approx, drv approx
+
+        //wfp approximation using definite integral
+        wfp_approx[i as usize].assign(m);
+
+        let mut norm_temp = Float::new(100);
+        let mut temp1 = Float::new(100);
+        let mut tempM = Float::new(100);
+        let mut exp1 = Float::new(100);
+        let mut expM = Float::new(100);
+        let mReciprocal: f64 = 1.0/(*m as f64);
+        let mut expMtemp = Float::new(100);
+
+        expMtemp.assign(mReciprocal.pow(alpha));
+        norm_temp.assign(norm*(-1.0*(i as f64)));
+        temp1.assign(norm_temp.clone()*((1.0-r).ln()));
+        tempM.assign(norm_temp.clone()*expMtemp*((1.0-r).ln()));
+
+        exp1.assign(rgsl::exponential_integrals::En(2, temp1.to_f64()));
+        expM.assign(rgsl::exponential_integrals::En(2, tempM.to_f64()));
+
+        wfp_approx[i as usize].assign(m - ((*m as f64)*expM.clone()- exp1.clone())/alpha);
+    }
+
+    (fp_approx, wfp_approx, rdfp_approx)
+}
+
+fn compute_approx(m: u32, n: u32, alpha: Float, r: f32) {
+    let norm: Float = compute_normalizer(&alpha, &m);
+    //let (expr, ln_expr, binom_expr) : (Vec<Float>, Vec<Float>, Vec<Float>) = populate_subexpressions(&m, &alpha, &norm);
+    let (fp_approx, drv_approx, rdfp_approx) : (Vec<Float>, Vec<Float>, Vec<Float>) = populate_approx(&m, &n, &alpha, &norm, &r);
+
+    let mut cache_size: u32 = 0;
+    println!("size,mr,wbr");
+    for x in 0..(n-1) {
+        if fp_approx[x as usize].clone().floor() > cache_size {
+            let size = round::floor(fp_approx[x as usize].to_f64(),1);
+            if size.fract() == 0.0 {
+                let mr = round::floor(drv_approx[x as usize].to_f64(),3);
+                let wbr = round::floor(rdfp_approx[x as usize].to_f64(), 3) * mr;
+                println!("{0},{1:.3},{2:.3}",size,mr,wbr);
+            }
+            cache_size = fp_approx[x as usize].clone().floor().to_u32_saturating().unwrap();
+        }
+    }
+}
+
+fn compute(m: u32, n: u32, alpha: Float, r: f32) {
     let norm: Float = compute_normalizer(&alpha, &m);
     let (expr, ln_expr, binom_expr) : (Vec<Float>, Vec<Float>, Vec<Float>) = populate_subexpressions(&m, &alpha, &norm);
-    let (fp, drv, rdfp, rdfp_approx, rdfp_upper, rdfp_lower) : (Vec<Float>, Vec<Float>, Vec<Float>, Vec<Float>, Vec<Float>, Vec<Float>) = populate_footprints_derivatives(&m, &n, &alpha, &norm, expr, ln_expr, binom_expr);
-    //println!("parameters: data size = {0}, trace length = {1}, zipf parameter = {2}", &m, &n, &alpha);
+    let (fp, drv, rdfp) : (Vec<Float>, Vec<Float>, Vec<Float>) = populate_footprints_derivatives(&m, &n, &alpha, &norm, &r, expr, ln_expr, binom_expr);
 
     let mut cache_size: u32 = 0;
     println!("size,mr,wbr");
@@ -151,25 +156,72 @@ fn compute_mrs(m: u32, n: u32, alpha: Float) {
             if size.fract() == 0.0 {
                 let mr = round::floor(drv[x as usize].to_f64(),3);
                 let wbr = round::floor(rdfp[x as usize].to_f64(),3) * mr;
-                let wbr_approx = round::floor(rdfp_approx[x as usize].to_f64(), 3) * mr;
-                let wbr_upper = round::floor(rdfp_upper[x as usize].to_f64(), 3) * mr;
-                let wbr_lower = round::floor(rdfp_lower[x as usize].to_f64(), 3) * mr;
-                println!("{0},{1:.3},{2:.3},{3:.3},{4:.3},{5:.3}",size,mr,wbr,wbr_approx,wbr_upper, wbr_lower);
+                println!("{0},{1:.3},{2:.3}",size,mr,wbr);
             }
             cache_size = fp[x as usize].clone().floor().to_u32_saturating().unwrap();
         }
     }
-
 }
 
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    let m: u32 = args[1].parse().unwrap();
-    let n: u32 = args[2].parse().unwrap();
+    //clap definition
+    let matches = App::new("zipfmodel")
+    .author("Wesley Smith <wsmith6@ur.rochester.edu>")
+    .arg(Arg::with_name("type")
+             .short("t")
+             .long("type")
+             .takes_value(true)
+             .required(true)
+             .help("exact or approximate math. vals = exact, approx"))
+    .arg(Arg::with_name("datasize")
+             .short("m")
+             .long("datasize")
+             .takes_value(true)
+             .required(true)
+             .help("Number of distinct elements"))
+    .arg(Arg::with_name("tracelength")
+             .short("n")
+             .long("tracelength")
+             .takes_value(true)
+             .required(true)
+             .help("Maximum window size"))
+    .arg(Arg::with_name("alpha")
+             .short("a")
+             .long("alpha")
+             .takes_value(true)
+             .required(true)
+             .help("Zipf parameter"))
+    .arg(Arg::with_name("write_ratio")
+             .short("r")
+             .long("write_ratio")
+             .takes_value(true)
+             .required(true)
+             .help("percentage of accesses that are writes"))
+    .get_matches();
+    
+    //parse clap clargs
+    let ex_type = matches.value_of("type").unwrap();
     let mut alpha = Float::new(100);
-    alpha.assign(args[3].parse::<f32>().unwrap());
+    let a_str: &str = matches.value_of("alpha").unwrap();
+    let a = a_str.parse::<f32>().unwrap();
+    alpha.assign(a);
+    let m_str: &str = matches.value_of("datasize").unwrap();
+    let m: u32 = m_str.parse::<u32>().unwrap();
+    let n_str: &str = matches.value_of("tracelength").unwrap();
+    let n = n_str.parse::<u32>().unwrap();
+    let r_str: &str = matches.value_of("write_ratio").unwrap();
+    let r = r_str.parse::<f32>().unwrap();
 
-    compute_mrs(m, n, alpha);
+    //execute based on type
+    if ex_type.eq("exact"){
+        compute(m, n, alpha, r);
+    }
+    else if ex_type.eq("approx"){
+        compute_approx(m, n, alpha, r);
+    }
+    else{
+        println!("Invalid execution type. cargo run -h for help");
+    }
 
 }
