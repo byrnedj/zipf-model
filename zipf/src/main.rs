@@ -45,14 +45,18 @@ fn populate_subexpressions(m: &u32, alpha: &Float, norm: &Float) -> (Vec<Float>,
     (expr, ln_expr, binom_expr)
 }
 
-fn populate_footprints_derivatives(m: &u32, n: &u32, alpha: &Float, norm:&Float, expr: Vec<Float>, ln_expr: Vec<Float>, binom_expr: Vec<Float>) -> (Vec<Float>, Vec<Float>, Vec<Float>, Vec<Float>){
+fn populate_footprints_derivatives(m: &u32, n: &u32, alpha: &Float, norm:&Float, expr: Vec<Float>, ln_expr: Vec<Float>, binom_expr: Vec<Float>) -> (Vec<Float>, Vec<Float>, Vec<Float>, Vec<Float>, Vec<Float>, Vec<Float>){
     
     let mut fp: Vec<Float> = Vec::new();
     let mut drv: Vec<Float> = Vec::new();
     let mut wfp: Vec<Float> = Vec::new();
     let mut rdfp: Vec<Float> = Vec::new();
     let mut wfp_approx:Vec<Float> = Vec::new();
+    let mut wfp_upper:Vec<Float> = Vec::new();
+    let mut wfp_lower:Vec<Float> = Vec::new();
     let mut rdfp_approx:Vec<Float> = Vec::new();
+    let mut rdfp_upper:Vec<Float> = Vec::new();
+    let mut rdfp_lower:Vec<Float> = Vec::new();
 
     let read_ratio: f64 = 0.8;
 
@@ -61,8 +65,12 @@ fn populate_footprints_derivatives(m: &u32, n: &u32, alpha: &Float, norm:&Float,
         drv.push(Float::new(100));
         wfp.push(Float::new(100));
         wfp_approx.push(Float::new(100));
+        wfp_upper.push(Float::new(100));
+        wfp_lower.push(Float::new(100));
         rdfp.push(Float::new(100));
         rdfp_approx.push(Float::new(100));
+        rdfp_upper.push(Float::new(100));
+        rdfp_lower.push(Float::new(100));
 
         fp[i as usize].assign(0);
         drv[i as usize].assign(0);
@@ -92,20 +100,13 @@ fn populate_footprints_derivatives(m: &u32, n: &u32, alpha: &Float, norm:&Float,
         temp1.assign(norm_temp.clone()*(read_ratio.ln()));
         tempM.assign(norm_temp.clone()*expMtemp*(read_ratio.ln()));
 
-        //let norm_temp_f64: f64 = (-1.0*norm.to_f64())*(i as f64);
-        //let temp1_f64: f64 = norm_temp*(read_ratio.ln());
-        //let tempM: f64 = norm_temp.pow(-1.0*alpha.to_f64())*(read_ratio.ln());
-
-        //println!("temp1: {}", temp1);
-        //println!("tempM: {}", tempM);
 
         exp1.assign(rgsl::exponential_integrals::En(2, temp1.to_f64()));
         expM.assign(rgsl::exponential_integrals::En(2, tempM.to_f64()));
 
-        //let exp1: f64 = rgsl::exponential_integrals::En(2, temp1);
-        //let expM: f64 = rgsl::exponential_integrals::En(2, tempM);
-
         wfp_approx[i as usize].assign(m - ((*m as f64)*expM - exp1)/alpha);
+
+
 
 
         wfp[i as usize].assign(0);
@@ -119,21 +120,27 @@ fn populate_footprints_derivatives(m: &u32, n: &u32, alpha: &Float, norm:&Float,
         
 
         let t1 = fp[i as usize].clone();
-        let t2 = wfp[i as usize].clone();
-        let t3 = wfp_approx[i as usize].clone();
+        let t2 = fp[i as usize].clone();
+        let t3 = fp[i as usize].clone();
         let t4 = fp[i as usize].clone();
+        let t5 = wfp[i as usize].clone();
+        let t6 = wfp_approx[i as usize].clone();
+        let t7 = wfp_upper[i as usize].clone();
+        let t8 = wfp_lower[i as usize].clone();
 
-        rdfp[i as usize].assign(t2/t1);
-        rdfp_approx[i as usize].assign(t3/t4);
+        rdfp[i as usize].assign(t5/t1);
+        rdfp_approx[i as usize].assign(t6/t2);
+        rdfp_upper[i as usize].assign(t7/t3);
+        rdfp_lower[i as usize].assign(t8/t4);
     }
 
-    (fp, drv, rdfp, rdfp_approx)
+    (fp, drv, rdfp, rdfp_approx, rdfp_upper, rdfp_lower)
 }
 
 fn compute_mrs(m: u32, n: u32, alpha: Float) {
     let norm: Float = compute_normalizer(&alpha, &m);
     let (expr, ln_expr, binom_expr) : (Vec<Float>, Vec<Float>, Vec<Float>) = populate_subexpressions(&m, &alpha, &norm);
-    let (fp, drv, rdfp, rdfp_approx) : (Vec<Float>, Vec<Float>, Vec<Float>, Vec<Float>) = populate_footprints_derivatives(&m, &n, &alpha, &norm, expr, ln_expr, binom_expr);
+    let (fp, drv, rdfp, rdfp_approx, rdfp_upper, rdfp_lower) : (Vec<Float>, Vec<Float>, Vec<Float>, Vec<Float>, Vec<Float>, Vec<Float>) = populate_footprints_derivatives(&m, &n, &alpha, &norm, expr, ln_expr, binom_expr);
     //println!("parameters: data size = {0}, trace length = {1}, zipf parameter = {2}", &m, &n, &alpha);
 
     let mut cache_size: u32 = 0;
@@ -145,7 +152,9 @@ fn compute_mrs(m: u32, n: u32, alpha: Float) {
                 let mr = round::floor(drv[x as usize].to_f64(),3);
                 let wbr = round::floor(rdfp[x as usize].to_f64(),3) * mr;
                 let wbr_approx = round::floor(rdfp_approx[x as usize].to_f64(), 3) * mr;
-                println!("{0},{1:.3},{2:.3},{3:.3}",size,mr,wbr,wbr_approx);
+                let wbr_upper = round::floor(rdfp_upper[x as usize].to_f64(), 3) * mr;
+                let wbr_lower = round::floor(rdfp_lower[x as usize].to_f64(), 3) * mr;
+                println!("{0},{1:.3},{2:.3},{3:.3},{4:.3},{5:.3}",size,mr,wbr,wbr_approx,wbr_upper, wbr_lower);
             }
             cache_size = fp[x as usize].clone().floor().to_u32_saturating().unwrap();
         }
