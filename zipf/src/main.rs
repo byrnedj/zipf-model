@@ -1,4 +1,3 @@
-use std::env;
 use math::round;
 use rug::{ops::Pow, Float, Assign};
 extern crate rgsl;
@@ -33,7 +32,6 @@ fn populate_subexpressions(m: &u32, alpha: &Float, norm: &Float) -> (Vec<Float>,
         ln_expr.push(Float::new(100));
         binom_expr.push(Float::new(100));
         expr[(i-1) as usize].assign(1 - norm*(temp.clone().pow(-1*(alpha.clone()))));
-        //println!("{}", &expr[(i-1) as usize]);
         ln_expr[(i-1) as usize].assign(-1*expr[(i-1) as usize].clone().ln());
         binom_expr[(i-1) as usize].assign(norm*(temp.clone().pow(-1*(alpha.clone()))));
     }
@@ -68,7 +66,6 @@ fn populate_footprints_derivatives(m: &u32, n: &u32, alpha: &Float, norm:&Float,
         wfp[i as usize].assign(0);
         for k in 0..*m{
             let t1 = binom_expr[k as usize].clone()*i;
-            let t2 = 1 - expr[k as usize].clone().pow(i);
             let t3 = wfp[i as usize].clone();
  
             wfp[i as usize].assign(t3 + (1 - ((1.0-r).pow(t1))));
@@ -90,6 +87,8 @@ fn populate_approx(m: &u32, n: &u32, alpha: &Float, norm: &Float, r: &f32) -> (V
     let mut wfp_approx: Vec<Float> = Vec::new();
     let mut rdfp_approx: Vec<Float> = Vec::new();
 
+    let inva: f64 = 1.0/(alpha.to_f64());
+
     for i in 0..*n{
         fp_approx.push(Float::new(100));
         drv_approx.push(Float::new(100));
@@ -97,6 +96,12 @@ fn populate_approx(m: &u32, n: &u32, alpha: &Float, norm: &Float, r: &f32) -> (V
         rdfp_approx.push(Float::new(100));
 
         //TODO: fp approx, drv approx
+        let t: f64 = norm.to_f64() * (i as f64)/(*m as f64).pow(alpha.to_f64());
+        let fp_temp: f64 = (*m as f64)*(1.0 - (inva*t.pow(inva)*rgsl::gamma_beta::incomplete_gamma::gamma_inc(-1.0*inva, t)));
+        let drv_temp: f64 = ((i as f64*norm.to_f64()).pow(inva)*rgsl::gamma_beta::incomplete_gamma::gamma_inc(1.0 - inva, t))/(alpha.to_f64()*i as f64);
+        fp_approx[i as usize].assign(fp_temp);
+        drv_approx[i as usize].assign(drv_temp);
+        
 
         //wfp approximation using definite integral
         wfp_approx[i as usize].assign(m);
@@ -108,19 +113,25 @@ fn populate_approx(m: &u32, n: &u32, alpha: &Float, norm: &Float, r: &f32) -> (V
         let mut expM = Float::new(100);
         let mReciprocal: f64 = 1.0/(*m as f64);
         let mut expMtemp = Float::new(100);
+        let n_func: f64 = 1.0 + (1.0/alpha.to_f64());
 
         expMtemp.assign(mReciprocal.pow(alpha));
         norm_temp.assign(norm*(-1.0*(i as f64)));
         temp1.assign(norm_temp.clone()*((1.0-r).ln()));
         tempM.assign(norm_temp.clone()*expMtemp*((1.0-r).ln()));
 
-        exp1.assign(rgsl::exponential_integrals::En(2, temp1.to_f64()));
-        expM.assign(rgsl::exponential_integrals::En(2, tempM.to_f64()));
+        exp1.assign(rgsl::gamma_beta::incomplete_gamma::gamma_inc(1.0 - n_func, temp1.to_f64()));
+        expM.assign(((*m as f64)*tempM.clone().pow(n_func - 1.0)) * rgsl::gamma_beta::incomplete_gamma::gamma_inc(1.0 - n_func, tempM.to_f64()));
 
-        wfp_approx[i as usize].assign(m - ((*m as f64)*expM.clone()- exp1.clone())/alpha);
+        wfp_approx[i as usize].assign(m - (expM.clone()- exp1.clone())/alpha);
+
+        let t1 = fp_approx[i as usize].clone();
+        let t2 = wfp_approx[i as usize].clone();
+
+        rdfp_approx[i as usize].assign(t2/t1);
     }
 
-    (fp_approx, wfp_approx, rdfp_approx)
+    (fp_approx, drv_approx, rdfp_approx)
 }
 
 fn compute_approx(m: u32, n: u32, alpha: Float, r: f32) {
@@ -130,11 +141,11 @@ fn compute_approx(m: u32, n: u32, alpha: Float, r: f32) {
 
     let mut cache_size: u32 = 0;
     println!("size,mr,wbr");
-    for x in 0..(n-1) {
+    for x in 1..(n-1) {
         if fp_approx[x as usize].clone().floor() > cache_size {
-            let size = round::floor(fp_approx[x as usize].to_f64(),1);
+            let size = round::floor(fp_approx[x as usize].to_f64(), 1);
             if size.fract() == 0.0 {
-                let mr = round::floor(drv_approx[x as usize].to_f64(),3);
+                let mr = round::floor(drv_approx[x as usize].to_f64(), 3);
                 let wbr = round::floor(rdfp_approx[x as usize].to_f64(), 3) * mr;
                 println!("{0},{1:.3},{2:.3}",size,mr,wbr);
             }
