@@ -142,14 +142,14 @@ fn compute_approx(m: u32, n: u32, alpha: Float, r: f32) {
     let mut cache_size: u32 = 0;
     println!("size,mr,wbr");
     for x in 1..(n-1) {
-        if fp_approx[x as usize].clone().floor() > cache_size {
+        if fp_approx[x as usize].clone().floor() > cache_size + 1000{
             let size = round::floor(fp_approx[x as usize].to_f64(), 1);
             if size.fract() == 0.0 {
                 let mr = round::floor(drv_approx[x as usize].to_f64(), 3);
                 let wbr = round::floor(rdfp_approx[x as usize].to_f64(), 3) * mr;
                 println!("{0},{1:.3},{2:.3}",size,mr,wbr);
             }
-            cache_size = fp_approx[x as usize].clone().floor().to_u32_saturating().unwrap();
+            cache_size = fp_approx[x as usize].clone().floor().to_u32_saturating().unwrap() + 1000;
         }
     }
 }

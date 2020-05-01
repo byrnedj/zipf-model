@@ -1,0 +1,5 @@
+cargo:rustc-link-search=native=/usr/local/Cellar/gsl/2.6/lib
+cargo:rustc-link-lib=gsl
+cargo:rustc-link-lib=gslcblas
+cargo:rustc-link-lib=m
+cargo:rustc-cfg=feature="v2"
