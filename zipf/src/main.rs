@@ -224,6 +224,9 @@ fn main() {
     let r_str: &str = matches.value_of("write_ratio").unwrap();
     let r = r_str.parse::<f32>().unwrap();
 
+    //error handler off
+    rgsl::error::set_error_handler_off();
+
     //execute based on type
     if ex_type.eq("exact"){
         compute(m, n, alpha, r);
