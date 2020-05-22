@@ -120,10 +120,11 @@ fn populate_approx(m: &u32, n: &u32, alpha: &Float, norm: &Float, r: &f32) -> (V
         temp1.assign(norm_temp.clone()*((1.0-r).ln()));
         tempM.assign(norm_temp.clone()*expMtemp*((1.0-r).ln()));
 
-        exp1.assign(rgsl::gamma_beta::incomplete_gamma::gamma_inc(1.0 - n_func, temp1.to_f64()));
+        exp1.assign((temp1.clone().to_f64().pow(n_func - 1.0))*rgsl::gamma_beta::incomplete_gamma::gamma_inc(1.0 - n_func, temp1.to_f64()));
+        //exp1.assign(rgsl::gamma_beta::incomplete_gamma::gamma_inc(1.0 - n_func, temp1.to_f64()));
         expM.assign(((*m as f64)*tempM.clone().pow(n_func - 1.0)) * rgsl::gamma_beta::incomplete_gamma::gamma_inc(1.0 - n_func, tempM.to_f64()));
 
-        wfp_approx[i as usize].assign(m - (expM.clone()- exp1.clone())/alpha);
+        wfp_approx[i as usize].assign(m - 1 - (expM.clone()- exp1.clone())/alpha);
 
         let t1 = fp_approx[i as usize].clone();
         let t2 = wfp_approx[i as usize].clone();
