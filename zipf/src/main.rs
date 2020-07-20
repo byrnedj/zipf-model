@@ -135,7 +135,7 @@ fn populate_approx(m: &u32, n: &u32, alpha: &Float, norm: &Float, r: &f32) -> (V
     (fp_approx, drv_approx, rdfp_approx)
 }
 
-fn compute_approx(m: u32, n: u32, alpha: Float, r: f32) {
+fn compute_approx(m: u32, n: u32, alpha: Float, r: f32, output_int: u32) {
     let norm: Float = compute_normalizer(&alpha, &m);
     //let (expr, ln_expr, binom_expr) : (Vec<Float>, Vec<Float>, Vec<Float>) = populate_subexpressions(&m, &alpha, &norm);
     let (fp_approx, drv_approx, rdfp_approx) : (Vec<Float>, Vec<Float>, Vec<Float>) = populate_approx(&m, &n, &alpha, &norm, &r);
@@ -143,14 +143,15 @@ fn compute_approx(m: u32, n: u32, alpha: Float, r: f32) {
     let mut cache_size: u32 = 0;
     println!("size,mr,wbr");
     for x in 1..(n-1) {
-        if fp_approx[x as usize].clone().floor() > cache_size + 1000{
-            let size = round::floor(fp_approx[x as usize].to_f64(), 1);
-            if size.fract() == 0.0 {
-                let mr = round::floor(drv_approx[x as usize].to_f64(), 3);
-                let wbr = round::floor(rdfp_approx[x as usize].to_f64(), 3) * mr;
-                println!("{0},{1:.3},{2:.3}",size,mr,wbr);
-            }
-            cache_size = fp_approx[x as usize].clone().floor().to_u32_saturating().unwrap() + 1000;
+        let fp = fp_approx[x as usize].clone().floor();
+        if  fp > cache_size && fp > output_int {
+            let fsize = output_int as f64;
+            let size = round::floor(fp_approx[x as usize].to_f64(), fsize.log10() as u8) as u32;
+            let isize = (size/output_int)*output_int;
+            let mr = round::floor(drv_approx[x as usize].to_f64(), 3);
+            let wbr = round::floor(rdfp_approx[x as usize].to_f64(), 3) * mr;
+            println!("{0},{1:.3},{2:.3}",isize,mr,wbr);
+            cache_size = fp_approx[x as usize].clone().floor().to_u32_saturating().unwrap() + output_int;
         }
     }
 }
@@ -210,6 +211,12 @@ fn main() {
              .takes_value(true)
              .required(true)
              .help("percentage of accesses that are writes"))
+    .arg(Arg::with_name("output_int")
+             .short("i")
+             .long("output_int")
+             .takes_value(true)
+             .required(true)
+             .help("MRC/WBR interval"))
     .get_matches();
     
     //parse clap clargs
@@ -224,6 +231,8 @@ fn main() {
     let n = n_str.parse::<u32>().unwrap();
     let r_str: &str = matches.value_of("write_ratio").unwrap();
     let r = r_str.parse::<f32>().unwrap();
+    let output_int_str: &str = matches.value_of("output_int").unwrap();
+    let output_int = output_int_str.parse::<u32>().unwrap();
 
     //error handler off
     rgsl::error::set_error_handler_off();
@@ -233,7 +242,7 @@ fn main() {
         compute(m, n, alpha, r);
     }
     else if ex_type.eq("approx"){
-        compute_approx(m, n, alpha, r);
+        compute_approx(m, n, alpha, r, output_int);
     }
     else{
         println!("Invalid execution type. cargo run -h for help");
