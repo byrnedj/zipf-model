@@ -1,1 +1,4 @@
-zipf/target/debug
+zipf/target/
+zipf/target/.rustc_info.json
+zipf/target/release/zipf
+zipf/target/release/zipf.d/
