@@ -3,6 +3,8 @@ use rug::{ops::Pow, Float, Assign};
 extern crate rgsl;
 extern crate clap;
 use clap::{Arg, App};
+use std::fs::File;
+use std::io::Write;
 
 fn compute_normalizer(alpha: &Float, m: &u32) -> Float {
     let mut total = Float::new(100);
@@ -135,13 +137,28 @@ fn populate_approx(m: &u32, n: &u32, alpha: &Float, norm: &Float, r: &f32) -> (V
     (fp_approx, drv_approx, rdfp_approx)
 }
 
-fn compute_approx(m: u32, n: u32, alpha: Float, r: f32, output_int: u32) {
+fn compute_approx(m: u32, n: u32, alpha: Float, r: f32, output_int: u32, use_stdout: u32, ofilename: &str) {
     let norm: Float = compute_normalizer(&alpha, &m);
     //let (expr, ln_expr, binom_expr) : (Vec<Float>, Vec<Float>, Vec<Float>) = populate_subexpressions(&m, &alpha, &norm);
     let (fp_approx, drv_approx, rdfp_approx) : (Vec<Float>, Vec<Float>, Vec<Float>) = populate_approx(&m, &n, &alpha, &norm, &r);
+    let mut of;
+    if use_stdout == 0 {
+        of = File::create(ofilename).expect("ERROR!");
+        //of = match File::create(ofilename) {
+        //    Err(why) => panic!("couldn't create {}: {}", ofilename, why),
+        //    Ok(file) => Some(file),
+        //};
+    } else {
+        of = File::create("/dev/null").unwrap();
+    }
 
     let mut cache_size: u32 = 0;
-    println!("size,mr,wbr");
+    if use_stdout == 0 {
+        let line = format!("size,mr,wbr\n");
+        of.write(line.as_bytes()).expect("write ERROR");
+    } else {
+        println!("size,mr,wbr");
+    }
     for x in 1..(n-1) {
         let fp = fp_approx[x as usize].clone().floor();
         if  fp > cache_size && fp > output_int {
@@ -150,7 +167,12 @@ fn compute_approx(m: u32, n: u32, alpha: Float, r: f32, output_int: u32) {
             let isize = (size/output_int)*output_int;
             let mr = round::floor(drv_approx[x as usize].to_f64(), 3);
             let wbr = round::floor(rdfp_approx[x as usize].to_f64(), 3) * mr;
-            println!("{0},{1:.3},{2:.3}",isize,mr,wbr);
+            if use_stdout == 0 {
+                let line = format!("{0},{1:.3},{2:.3}\n",isize,mr,wbr);
+                of.write(line.as_bytes()).expect("WRITE_ERROR");
+            } else {
+                println!("{0},{1:.3},{2:.3}",isize,mr,wbr);
+            }
             cache_size = fp_approx[x as usize].clone().floor().to_u32_saturating().unwrap() + output_int;
         }
     }
@@ -217,8 +239,17 @@ fn main() {
              .takes_value(true)
              .required(true)
              .help("MRC/WBR interval"))
+    .arg(Arg::with_name("output_file")
+             .short("o")
+             .long("output_file")
+             .takes_value(true)
+             .required(false)
+             .help("outputs MRC/WBR to file"))
     .get_matches();
-    
+
+    let mut use_stdout = 0;
+    let mut ofilename = "";
+
     //parse clap clargs
     let ex_type = matches.value_of("type").unwrap();
     let mut alpha = Float::new(100);
@@ -233,6 +264,13 @@ fn main() {
     let r = r_str.parse::<f32>().unwrap();
     let output_int_str: &str = matches.value_of("output_int").unwrap();
     let output_int = output_int_str.parse::<u32>().unwrap();
+    
+    let output_file = matches.value_of("output_file");
+    match output_file {
+        None => use_stdout = 1,
+        Some(s) => ofilename = s
+    }
+
 
     //error handler off
     rgsl::error::set_error_handler_off();
@@ -242,7 +280,7 @@ fn main() {
         compute(m, n, alpha, r);
     }
     else if ex_type.eq("approx"){
-        compute_approx(m, n, alpha, r, output_int);
+        compute_approx(m, n, alpha, r, output_int, use_stdout, ofilename);
     }
     else{
         println!("Invalid execution type. cargo run -h for help");
