@@ -83,99 +83,114 @@ fn populate_footprints_derivatives(m: &u32, n: &u32, alpha: &Float, norm:&Float,
     (fp, drv, rdfp)
 }
 
-fn populate_approx(m: &u32, n: &u32, alpha: &Float, norm: &Float, r: &f32) -> (Vec<Float>, Vec<Float>, Vec<Float>){
-    let mut fp_approx: Vec<Float> = Vec::new();
-    let mut drv_approx: Vec<Float> = Vec::new();
-    let mut wfp_approx: Vec<Float> = Vec::new();
-    let mut rdfp_approx: Vec<Float> = Vec::new();
+fn populate_approx(m: &u32, n: &u32, alpha: &Float, norm: &Float, r: &f32, c: u32) -> (Float, Float, Float){
+    let mut fp_approx = Float::new(100);
+    let mut drv_approx = Float::new(100);
+    let mut wfp_approx = Float::new(100);
+    let mut rdfp_approx = Float::new(100);
 
     let inva: f64 = 1.0/(alpha.to_f64());
+    let mut searchup = false;
+    let mut searchdown = false;
+    let mut win_length: f64 = 1.0;
+    let mut lower_bound: f64 = 1.0;
+    let mut t_final: f64 = 0.0;
 
-    for i in 0..*n{
-        fp_approx.push(Float::new(100));
-        drv_approx.push(Float::new(100));
-        wfp_approx.push(Float::new(100));
-        rdfp_approx.push(Float::new(100));
-
-        //TODO: fp approx, drv approx
-        let t: f64 = norm.to_f64() * (i as f64)/(*m as f64).pow(alpha.to_f64());
+    while !searchup{
+        let t: f64 = norm.to_f64() * (win_length as f64)/(*m as f64).pow(alpha.to_f64());
         let fp_temp: f64 = (*m as f64)*(1.0 - (inva*t.pow(inva)*rgsl::gamma_beta::incomplete_gamma::gamma_inc(-1.0*inva, t)));
-        let drv_temp: f64 = ((i as f64*norm.to_f64()).pow(inva)*rgsl::gamma_beta::incomplete_gamma::gamma_inc(1.0 - inva, t))/(alpha.to_f64()*i as f64);
-        fp_approx[i as usize].assign(fp_temp);
-        drv_approx[i as usize].assign(drv_temp);
-        
-
-        //wfp approximation using definite integral
-        wfp_approx[i as usize].assign(m);
-
-        let mut norm_temp = Float::new(100);
-        let mut temp1 = Float::new(100);
-        let mut tempM = Float::new(100);
-        let mut exp1 = Float::new(100);
-        let mut expM = Float::new(100);
-        let mReciprocal: f64 = 1.0/(*m as f64);
-        let mut expMtemp = Float::new(100);
-        let n_func: f64 = 1.0 + (1.0/alpha.to_f64());
-
-        expMtemp.assign(mReciprocal.pow(alpha));
-        norm_temp.assign(norm*(-1.0*(i as f64)));
-        temp1.assign(norm_temp.clone()*((1.0-r).ln()));
-        tempM.assign(norm_temp.clone()*expMtemp*((1.0-r).ln()));
-
-        exp1.assign((temp1.clone().to_f64().pow(n_func - 1.0))*rgsl::gamma_beta::incomplete_gamma::gamma_inc(1.0 - n_func, temp1.to_f64()));
-        //exp1.assign(rgsl::gamma_beta::incomplete_gamma::gamma_inc(1.0 - n_func, temp1.to_f64()));
-        expM.assign(((*m as f64)*tempM.clone().pow(n_func - 1.0)) * rgsl::gamma_beta::incomplete_gamma::gamma_inc(1.0 - n_func, tempM.to_f64()));
-
-        wfp_approx[i as usize].assign(m - 1 - (expM.clone()- exp1.clone())/alpha);
-
-        let t1 = fp_approx[i as usize].clone();
-        let t2 = wfp_approx[i as usize].clone();
-
-        rdfp_approx[i as usize].assign(t2/t1);
+        if fp_temp > (c as f64){
+            lower_bound = win_length/2.0;
+            searchup = true;
+        }
+        else{
+            win_length = win_length * 2.0;
+        }
     }
 
+    while !searchdown{
+        let t: f64 = norm.to_f64() * ((win_length + lower_bound)/2.0)/(*m as f64).pow(alpha.to_f64());
+        let t2: f64 = norm.to_f64() * (((win_length + lower_bound)/2.0) - 1.0)/(*m as f64).pow(alpha.to_f64());
+        let fp_temp: f64 = (*m as f64)*(1.0 - (inva*t.pow(inva)*rgsl::gamma_beta::incomplete_gamma::gamma_inc(-1.0*inva, t)));
+        let fp_temp2: f64 = (*m as f64)*(1.0 - (inva*t.pow(inva)*rgsl::gamma_beta::incomplete_gamma::gamma_inc(-1.0*inva, t2)));
+
+        if fp_temp > (c as f64) && fp_temp2 < (c as f64){
+            searchdown = true;
+            t_final = t;
+            win_length = (win_length + lower_bound)/2.0;
+        }
+        else if fp_temp > (c as f64){
+            win_length = (win_length + lower_bound)/2.0;
+        }
+        else{
+            lower_bound = (win_length + lower_bound)/2.0;
+        }
+    }
+
+    //TODO: fp approx, drv approx
+    fp_approx.assign((*m as f64)*(1.0 - (inva*t_final.pow(inva)*rgsl::gamma_beta::incomplete_gamma::gamma_inc(-1.0*inva, t_final))));
+    drv_approx.assign(((win_length as f64*norm.to_f64()).pow(inva)*rgsl::gamma_beta::incomplete_gamma::gamma_inc(1.0 - inva, t_final))/(alpha.to_f64()*win_length as f64));
+
+
+    //wfp approximation using definite integral
+    let mut norm_temp = Float::new(100);
+    let mut temp1 = Float::new(100);
+    let mut tempM = Float::new(100);
+    let mut exp1 = Float::new(100);
+    let mut expM = Float::new(100);
+    let mReciprocal: f64 = 1.0/(*m as f64);
+    let mut expMtemp = Float::new(100);
+    let n_func: f64 = 1.0 + (1.0/alpha.to_f64());
+
+    expMtemp.assign(mReciprocal.pow(alpha));
+    norm_temp.assign(norm*(-1.0*(win_length as f64)));
+    temp1.assign(norm_temp.clone()*((1.0-r).ln()));
+    tempM.assign(norm_temp.clone()*expMtemp*((1.0-r).ln()));
+
+    exp1.assign((temp1.clone().to_f64().pow(n_func - 1.0))*rgsl::gamma_beta::incomplete_gamma::gamma_inc(1.0 - n_func, temp1.to_f64()));
+    expM.assign(((*m as f64)*tempM.clone().pow(n_func - 1.0)) * rgsl::gamma_beta::incomplete_gamma::gamma_inc(1.0 - n_func, tempM.to_f64()));
+
+    wfp_approx.assign(m - 1 - (expM.clone()- exp1.clone())/alpha);
+
+    rdfp_approx.assign(wfp_approx/fp_approx.clone());
+    
     (fp_approx, drv_approx, rdfp_approx)
 }
 
-fn compute_approx(m: u32, n: u32, alpha: Float, r: f32, output_int: u32, use_stdout: u32, ofilename: &str) {
+fn compute_approx(m: u32, n: u32, alpha: Float, r: f32, output_int: u32, use_stdout: u32, ofilename: &str, c: u32) {
     let norm: Float = compute_normalizer(&alpha, &m);
-    //let (expr, ln_expr, binom_expr) : (Vec<Float>, Vec<Float>, Vec<Float>) = populate_subexpressions(&m, &alpha, &norm);
-    let (fp_approx, drv_approx, rdfp_approx) : (Vec<Float>, Vec<Float>, Vec<Float>) = populate_approx(&m, &n, &alpha, &norm, &r);
+    let (fp_approx, drv_approx, rdfp_approx) : (Float, Float, Float) = populate_approx(&m, &n, &alpha, &norm, &r, c);
     let mut of;
     if use_stdout == 0 {
         of = File::create(ofilename).expect("ERROR!");
-        //of = match File::create(ofilename) {
-        //    Err(why) => panic!("couldn't create {}: {}", ofilename, why),
-        //    Ok(file) => Some(file),
-        //};
     } else {
         of = File::create("/dev/null").unwrap();
     }
 
-    let mut cache_size: u32 = 0;
-    if use_stdout == 0 {
-        let line = format!("size,mr,wbr\n");
-        of.write(line.as_bytes()).expect("write ERROR");
-    } else {
-        println!("size,mr,wbr");
-    }
-    for x in 1..(n-1) {
-        let fp = fp_approx[x as usize].clone().floor();
-        if  fp > cache_size && fp > output_int {
-            let fsize = output_int as f64;
-            let size = round::floor(fp_approx[x as usize].to_f64(), fsize.log10() as u8) as u32;
-            let isize = (size/output_int)*output_int;
-            let mr = round::floor(drv_approx[x as usize].to_f64(), 3);
-            let wbr = round::floor(rdfp_approx[x as usize].to_f64(), 3) * mr;
-            if use_stdout == 0 {
-                let line = format!("{0},{1:.3},{2:.3}\n",isize,mr,wbr);
-                of.write(line.as_bytes()).expect("WRITE_ERROR");
-            } else {
-                println!("{0},{1:.3},{2:.3}",isize,mr,wbr);
-            }
-            cache_size = fp_approx[x as usize].clone().floor().to_u32_saturating().unwrap() + output_int;
-        }
-    }
+    //let mut cache_size: u32 = 0;
+    //if use_stdout == 0 {
+    //    let line = format!("size,mr,wbr\n");
+    //    of.write(line.as_bytes()).expect("write ERROR");
+    //} else {
+    //    println!("size,mr,wbr");
+    //}
+    println!("size,mr,wbr");
+    
+    let fsize = output_int as f64;
+    let size = round::floor(fp_approx.to_f64(), fsize.log10() as u8) as u32;
+    let isize = (size/output_int)*output_int;
+    let mr = round::floor(drv_approx.to_f64(), 3);
+    let wbr = round::floor(rdfp_approx.to_f64(), 3) * mr;
+    //if use_stdout == 0 {
+    //    let line = format!("{0},{1:.3},{2:.3}\n",isize,mr,wbr);
+    //    of.write(line.as_bytes()).expect("WRITE_ERROR");
+    //} else {
+    //    println!("{0},{1:.3},{2:.3}",isize,mr,wbr);
+    //}
+    //cache_size = fp_approx.clone().floor().to_u32_saturating().unwrap() + output_int;
+    println!("{0},{1:.3},{2:.3}",c,mr,wbr);
+        
+    
 }
 
 fn compute(m: u32, n: u32, alpha: Float, r: f32) {
@@ -184,7 +199,6 @@ fn compute(m: u32, n: u32, alpha: Float, r: f32) {
     let (fp, drv, rdfp) : (Vec<Float>, Vec<Float>, Vec<Float>) = populate_footprints_derivatives(&m, &n, &alpha, &norm, &r, expr, ln_expr, binom_expr);
 
     let mut cache_size: u32 = 0;
-    println!("size,mr,wbr");
     for x in 0..(n-1) {
         if fp[x as usize].clone().floor() > cache_size {
             let size = round::floor(fp[x as usize].to_f64(),1);
@@ -271,16 +285,23 @@ fn main() {
         Some(s) => ofilename = s
     }
 
+    let cache_sizes: [u32; 4] = [500000,1000000,1500000, 2000000];
 
     //error handler off
     rgsl::error::set_error_handler_off();
 
+    
     //execute based on type
     if ex_type.eq("exact"){
         compute(m, n, alpha, r);
     }
+
     else if ex_type.eq("approx"){
-        compute_approx(m, n, alpha, r, output_int, use_stdout, ofilename);
+        println!("size,mr,wbr");
+        for c in 0..cache_sizes.len(){
+            compute_approx(m, n, alpha.clone(), r, output_int, use_stdout, ofilename, cache_sizes[c]);
+        }
+        
     }
     else{
         println!("Invalid execution type. cargo run -h for help");
