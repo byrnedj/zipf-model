@@ -157,8 +157,7 @@ fn populate_approx(m: &u32, n: &u32, alpha: &Float, norm: &Float, r: &f32, c: u3
     (fp_approx, drv_approx, rdfp_approx)
 }
 
-fn compute_approx(m: u32, n: u32, alpha: Float, r: f32, output_int: u32, use_stdout: u32, ofilename: &str, c: u32) {
-    let norm: Float = compute_normalizer(&alpha, &m);
+fn compute_approx(m: u32, n: u32, alpha: Float, r: f32, output_int: u32, use_stdout: u32, ofilename: &str, c: u32, norm: Float) {
     let (fp_approx, drv_approx, rdfp_approx) : (Float, Float, Float) = populate_approx(&m, &n, &alpha, &norm, &r, c);
     let mut of;
     if use_stdout == 0 {
@@ -285,7 +284,13 @@ fn main() {
         Some(s) => ofilename = s
     }
 
-    let cache_sizes: [u32; 4] = [500000,1000000,1500000, 2000000];
+    let mut cache_sizes: Vec<u32> = Vec::new();
+    for x in 1..2u32 {
+        println!("{0}",x*10000);
+        cache_sizes.push(x*10000);
+    }
+ 
+    //let cache_sizes: [u32; 4] = [1000000,1500000, 2000000];
 
     //error handler off
     rgsl::error::set_error_handler_off();
@@ -297,9 +302,10 @@ fn main() {
     }
 
     else if ex_type.eq("approx"){
+        let norm: Float = compute_normalizer(&alpha, &m);
         println!("size,mr,wbr");
         for c in 0..cache_sizes.len(){
-            compute_approx(m, n, alpha.clone(), r, output_int, use_stdout, ofilename, cache_sizes[c]);
+            compute_approx(m, n, alpha.clone(), r, output_int, use_stdout, ofilename, cache_sizes[c], norm.clone());
         }
         
     }
